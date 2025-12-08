@@ -73,13 +73,23 @@ and BACKEND of :BT (bordeaux-threads... the only backend)."
 
     ;; Then run the timers outside the lock
     (dolist (timer tlist)
-      (if (zerop (remaining timer))
-	  (funcall (callback timer) wheel timer)
-	  (install-timer wheel timer)))))
+      (let ((remaining (remaining timer)))
+        (cond
+          ((eq remaining 'unscheduled)
+           ;; If timer was unsheduled during
+           ;; the current  loop, then we need
+           ;; to ignore such timer:
+           nil)
+          ((zerop (remaining timer))
+           (funcall (callback timer) wheel timer))
+          (t
+           (install-timer wheel timer)))))))
 
 (defmethod install-timer :before (wheel timer)
   (declare (ignore timer))
-  (unless (wheel-thread wheel)
+  (when (or (null (wheel-thread wheel))
+            (not (bt:thread-alive-p
+                  (wheel-thread wheel))))
     (initialize-timer-wheel wheel)))
 
 (defun calculate-future-slot (current-slot remaining slots)
